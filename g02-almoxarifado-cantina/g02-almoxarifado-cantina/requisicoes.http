@@ -1,0 +1,120 @@
+### =====================================================================
+### Cloud Challenge - Senac 2026.2
+### Desafio 02: Almoxarifado da Cantina-Escola
+### Coleção de Requisições HTTP (compatível com VS Code REST Client)
+### =====================================================================
+
+@baseUrl = http://localhost:8000
+# Para testar no Azure App Service após o deploy:
+# @baseUrl = https://app-cloud-g02-cantina.azurewebsites.net
+
+### 1. Testar Rota GET /health (Status da aplicação e banco de dados)
+GET {{baseUrl}}/health
+Accept: application/json
+
+### 2. Listar Todos os Produtos
+GET {{baseUrl}}/api/produtos
+Accept: application/json
+
+### 3. Listar Apenas Produtos Abaixo do Estoque Mínimo (RF5 / CA4)
+GET {{baseUrl}}/api/produtos/abaixo-minimo
+Accept: application/json
+
+### 4. Cadastrar Novo Produto - Normal (RF1)
+POST {{baseUrl}}/api/produtos
+Content-Type: application/json
+
+{
+    "nome": "Óleo de Girassol Fictício",
+    "unidade": "L",
+    "estoque_minimo": 10.0
+}
+
+### 5. CA5: Cadastrar Produto com Nome Já Existente (Deve retornar 409 Conflict)
+POST {{baseUrl}}/api/produtos
+Content-Type: application/json
+
+{
+    "nome": "Óleo de Girassol Fictício",
+    "unidade": "L",
+    "estoque_minimo": 10.0
+}
+
+### 6. CA3: Cadastrar Movimentação com Quantidade 0 ou Negativa (Deve retornar 400 Bad Request)
+POST {{baseUrl}}/api/produtos/1/movimentacoes
+Content-Type: application/json
+
+{
+    "tipo": "entrada",
+    "quantidade": -10,
+    "motivo": "Tentativa de quantidade inválida"
+}
+
+### 7. Consultar Produto com ID 1 e seu Histórico de Movimentações (RF4)
+GET {{baseUrl}}/api/produtos/1
+Accept: application/json
+
+### 8. CA1 - Parte 1: Registrar Entrada de 10 unidades
+POST {{baseUrl}}/api/produtos/1/movimentacoes
+Content-Type: application/json
+
+{
+    "tipo": "entrada",
+    "quantidade": 10.0,
+    "motivo": "Compra NF 987 - Abastecimento Semanal"
+}
+
+### 9. CA1 - Parte 2: Registrar Saída de 4 unidades (Saldo passa a 6)
+POST {{baseUrl}}/api/produtos/1/movimentacoes
+Content-Type: application/json
+
+{
+    "tipo": "saida",
+    "quantidade": 4.0,
+    "motivo": "Consumo na Cozinha - Preparo do Lanche"
+}
+
+### 10. CA2: REGRA CENTRAL - Tentar Saída de 7 com Saldo 6 (Deve retornar 409 Conflict sem alterar nada)
+POST {{baseUrl}}/api/produtos/1/movimentacoes
+Content-Type: application/json
+
+{
+    "tipo": "saida",
+    "quantidade": 7.0,
+    "motivo": "Tentativa de saída maior que o saldo disponível"
+}
+
+### 11. Conferir que o Saldo continua 6 e o histórico não registrou a tentativa recusada
+GET {{baseUrl}}/api/produtos/1
+Accept: application/json
+
+### 12. Ponto de Controle 2 - Prova de Persistência (Registro GXX-PALAVRA)
+POST {{baseUrl}}/api/produtos
+Content-Type: application/json
+
+{
+    "nome": "G02-NIMBUS",
+    "unidade": "un",
+    "estoque_minimo": 1.0
+}
+
+### 13. Teste do Professor (Nível A - Registro PROF-HHMM)
+POST {{baseUrl}}/api/produtos
+Content-Type: application/json
+
+{
+    "nome": "PROF-2045",
+    "unidade": "un",
+    "estoque_minimo": 1.0
+}
+
+### 14. Extra: Estorno de Movimentação (Compensatória sem exclusão física)
+POST {{baseUrl}}/api/movimentacoes/1/estorno
+Content-Type: application/json
+
+{
+    "motivo": "Estorno por erro na contagem física"
+}
+
+### 15. Extra: Exportar Relatório em CSV
+GET {{baseUrl}}/api/relatorio/csv

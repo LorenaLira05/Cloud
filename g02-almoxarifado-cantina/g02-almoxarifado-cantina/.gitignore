@@ -1,0 +1,23 @@
+# Variáveis de ambiente e segredos (NUNCA comitar)
+.env
+*.env
+.env.local
+
+# Ambientes virtuais Python
+venv/
+.venv/
+env/
+__pycache__/
+*.pyc
+
+# Arquivos de banco de dados SQLite local
+*.db
+*.sqlite
+*.sqlite3
+banco/almoxarifado.db
+
+# Logs e arquivos de sistema
+*.log
+.DS_Store
+Thumbs.db
+.vscode/
