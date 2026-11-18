@@ -278,7 +278,3 @@ az webapp deploy \
 3. **Ponto de Reposição Sugerido:** Cálculo automático de previsão de dias restantes de estoque com base na média móvel das saídas dos últimos 14 dias.
 
 ---
-
-## 10. Roteiro do Pitch de 90 Segundos
-
-Consulte o arquivo dedicado com as marcações segundo a segundo em [evidencias/E6_pitch_90s.md](file:///C:/Users/CAIOBARRETOCURSINOMO/.gemini/antigravity/scratch/g02-almoxarifado-cantina/evidencias/E6_pitch_90s.md).
