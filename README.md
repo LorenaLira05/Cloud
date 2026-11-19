@@ -1,6 +1,15 @@
 # Almoxarifado da Cantina-Escola
 > **Cloud Computing · Atividade Prática · Cloud Challenge (Senac 2026.2)**  
 > **Professor:** Roni Maciel | **Desafio:** 02 | **Equipe:** Grupo 02 (G02)
+>
+> ### Integrantes da equipe
+- Caio Barreto Cursino Monteiro Valle
+- Lorena Beatriz Lira da Silva
+- Luiz Felipe Ferreira dos Santos
+- Maria Clara de Morais Silva
+- Ricardo Rafael Arruda Lins
+- Ruan Gualberto Dias Santos
+- Vitor Daniel Ferreira dos Santos
 
 [![Status](https://img.shields.io/badge/status-entregue%20e%20testado-success.svg)](#)
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](#)
