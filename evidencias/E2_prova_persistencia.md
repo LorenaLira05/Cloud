@@ -54,3 +54,9 @@ FROM produtos
 WHERE nome = 'G02-NIMBUS';
 ```
 * **Evidência:** Registro conferido diretamente nas tabelas físicas do PostgreSQL.
+
+## Critérios de Validação
+
+- Dados preservados após reinicialização.
+- `iniciado_em` atualizado após reinício.
+- Registro confirmado na API e no banco de dados.
