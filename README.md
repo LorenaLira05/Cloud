@@ -3,13 +3,13 @@
 > **Professor:** Ronierison de Souza Maciel | **Desafio:** 02 | **Equipe:** Grupo 02 (G02)
 >
 > ### Integrantes da equipe
-- Caio Barreto Cursino Monteiro Valle
-- Lorena Beatriz Lira da Silva
-- Luiz Felipe Ferreira dos  Santos
-- Maria Clara de Morais Silva
-- Ricardo Rafael Arruda Lins
-- Ruan Gualberto Dias Santos
-- Vitor Daniel Ferreira dos Santos
+- Caio Barreto Cursino Monteiro Valle;
+- Lorena Beatriz Lira da Silva;
+- Luiz Felipe Ferreira dos  Santos;
+- Maria Clara de Morais Silva;
+- Ricardo Rafael Arruda Lins;
+- Ruan Gualberto Dias Santos;
+- Vitor Daniel Ferreira dos Santos.
 
 [![Status](https://img.shields.io/badge/status-entregue%20e%20testado-success.svg)](#)
 [![Python](https://img.shields.io/badge/python-3.12%20%7C%203.13-blue.svg)](#)
@@ -95,7 +95,7 @@ flowchart TD
   SET saldo = saldo - :quantidade 
   WHERE id = :produto_id AND saldo >= :quantidade;
   ```
-  Caso duas requisições concorrentes tentem retirar o mesmo saldo simultaneamente, o motor relacional aplica o lock a nível de linha (*Row-level Locking*). Se o saldo restante for insuficiente, o `rowcount` retornado é `0`. A aplicação intercepta essa resposta, aborta a transação (`ROLLBACK`) e responde com `409 Conflict`. Nenhuma movimentação espúria é inserida.
+  Se duas requisições concorrentes tentem retirar o mesmo saldo simultaneamente, o motor relacional aplica o lock a nível de linha (*Row-level Locking*). Se o saldo restante for insuficiente, o `rowcount` retornado é `0`. A aplicação intercepta essa resposta, aborta a transação (`ROLLBACK`) e responde com `409 Conflict`. Nenhuma movimentação espúria é inserida.
 
 #### Decisão 3: A quantidade é inteira ou decimal (kg)?
 * **Decisão adotada:** **Decimal (`NUMERIC(10, 2)`)**, mapeada no Python como ponto flutuante/Decimal.
@@ -151,7 +151,7 @@ CREATE TABLE movimentacoes (
    # No Linux/Mac:
    source venv/bin/activate
    ```
-3. Instale as dependências:
+3. Install as dependências:
    ```bash
    pip install -r requirements.txt
    ```
