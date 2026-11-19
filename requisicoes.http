@@ -14,7 +14,7 @@ Accept: application/json
 
 ### 2. Listar Todos os Produtos
 GET {{baseUrl}}/api/produtos
-Accept: application/json
+Accept: application/Json
 
 ### 3. Listar Apenas Produtos Abaixo do Estoque Mínimo (RF5 / CA4)
 GET {{baseUrl}}/api/produtos/abaixo-minimo
