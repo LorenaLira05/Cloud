@@ -2,7 +2,7 @@
 
 **Desafio:** 02 - Almoxarifado da Cantina-Escola  
 **Turma:** Cloud Computing - Senac 2026.2  
-**Professor:** Roni Maciel  
+**Professor:** Ronierison de Souza Maciel  
 **Grupo:** G02  
 
 ---
