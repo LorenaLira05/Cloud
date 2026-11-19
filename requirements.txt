@@ -1,8 +1,8 @@
-# Servidor WSGI de produção para Azure App Service Linux
+# Servidor WSGI de produção para Azure App Service Linux:
 gunicorn==22.0.0
 
-# Driver PostgreSQL para comunicação com Azure Database for PostgreSQL
+# Driver PostgreSQL para comunicação com Azure Database for PostgreSQL:
 psycopg2-binary==2.9.9
 
-# Gerenciamento de variáveis de ambiente locais
+# Gerenciamento de variáveis de ambiente locais:
 python-dotenv==1.0.1
