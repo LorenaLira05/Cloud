@@ -18,7 +18,7 @@ from decimal import Decimal
 # Timestamp de inicialização da aplicação (para comprovação na rota /health)
 APP_INICIADO_EM = datetime.datetime.now(datetime.timezone.utc).isoformat()
 
-# Carregar variáveis de ambiente simples se arquivo .env existir
+# Carregar variáveis de ambiente simples if arquivo .env existir
 def carregar_env():
     env_path = os.path.join(os.path.dirname(__file__), ".env")
     if os.path.exists(env_path):
