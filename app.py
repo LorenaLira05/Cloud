@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Cloud Challenge - Senac 2026.2
-Desafio 02: Almoxarifado da Cantina-Escola
+Desafio de Cloud - Senac 2026.2
+Desafio 02: Almoxarifado da Cantina-Escolar
 Tecnologia: Python 3 (WSGI nativo / Gunicorn para Azure App Service)
 Compatibilidade: Azure Database for PostgreSQL & SQLite local
 """
@@ -71,7 +71,7 @@ def get_db():
         return conn, "sqlite"
 
 def init_db_if_needed():
-    """Garante que as tabelas existam e carrega dados iniciais se banco estiver vazio"""
+    """Garante que as tabelas existam e carrega dados iniciais caso o  banco estiver vazio"""
     try:
         conn, engine = get_db()
         cur = conn.cursor()
@@ -111,7 +111,7 @@ def init_db_if_needed():
     except Exception as e:
         print(f"[AVISO] Falha ao verificar/inicializar tabelas do banco: {e}", file=sys.stderr)
 
-# Inicializa banco se necessário
+# esse aqui Inicializa o banco se necessário
 init_db_if_needed()
 
 # Helpers para respostas HTTP
