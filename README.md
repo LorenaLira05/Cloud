@@ -5,7 +5,7 @@
 > ### Integrantes da equipe
 - Caio Barreto Cursino Monteiro Valle
 - Lorena Beatriz Lira da Silva
-- Luiz Felipe Ferreira dos Santos
+- Luiz Felipe Ferreira dos  Santos
 - Maria Clara de Morais Silva
 - Ricardo Rafael Arruda Lins
 - Ruan Gualberto Dias Santos
