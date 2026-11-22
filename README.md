@@ -135,7 +135,7 @@ CREATE TABLE movimentacoes (
 
 ---
 
-## 5. Como Executar a Aplicação
+## 5. Como Executar a Aplicação:
 
 ### 5.1. Execução Local Imediata (Nível C - SQLite / Postgres)
 
@@ -170,7 +170,7 @@ CREATE TABLE movimentacoes (
 
 ### 5.2. Execução da Bateria de Testes Automatizados
 
-O projeto inclui um executor de testes automatizados com cobertura total dos requisitos avaliados pelo professor:
+O projeto inclui um executor de testes automatizados com cobertura total dos requisitos avaliados pelo professor: 
 ```bash
 python test_suite.py
 ```
@@ -270,7 +270,7 @@ az webapp deploy \
 
 ---
 
-## 8. Dificuldade Superada
+## 8. Dificuldades Superadas
 
 * **Problema Encontrado:** Ao testar requisições concorrentes de saída na cozinha, se a aplicação fizesse uma leitura prévia do saldo (`SELECT saldo`) para depois executar o `UPDATE`, duas saídas quase simultâneas poderiam ler o mesmo saldo de 6 unidades e ambas serem aceitas para saídas de 4 unidades, gerando um saldo final negativo de -2 unidades, violando a regra central.
 * **Diagnóstico e Causa:** Condição de corrida (*race condition*) entre a leitura e a escrita (ausência de atomicidade no nível de banco de dados).
