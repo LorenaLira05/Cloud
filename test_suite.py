@@ -13,10 +13,10 @@ import unittest
 import io
 import shutil
 
-# Garantir importação do módulo app
+# Para garantir importação do módulo app
 sys.path.insert(0, os.path.dirname(__file__))
 
-# Forçar ambiente de teste local limpo com SQLite isolado
+# Força o ambiente de teste local limpo com SQLite isolado
 os.environ["DATABASE_URL"] = ""
 
 import app
@@ -72,7 +72,7 @@ class AlmoxarifadoTestCase(unittest.TestCase):
         """
         CA1. Entrada de 10 e depois saída de 4 -> saldo 6 e duas linhas no histórico.
         """
-        # Criar produto exclusivo para o teste
+        # Cria produto exclusivo para o teste
         status, prod, _ = self.call_api("POST", "/api/produtos", {
             "nome": "Produto Teste CA1",
             "unidade": "kg",
@@ -111,7 +111,7 @@ class AlmoxarifadoTestCase(unittest.TestCase):
         """
         CA2. Com saldo 6, saída de 7 -> 409; o saldo continua 6 e o histórico continua com 2 linhas.
         """
-        # Usar produto do CA1 (que tem saldo 6.0 e 2 linhas no histórico)
+        # Usa o produto do CA1 (que tem saldo 6.0 e 2 linhas no histórico)
         status, prod, _ = self.call_api("POST", "/api/produtos", {
             "nome": "Produto Teste CA2 Regra Central",
             "unidade": "un",
@@ -131,7 +131,7 @@ class AlmoxarifadoTestCase(unittest.TestCase):
         self.assertEqual(antes["saldo"], 6.0)
         historico_qtd_antes = len(antes["movimentacoes"])
 
-        # Tentativa de saída de 7 (maior que o saldo de 6)
+        # Tentativa de saída de 7 (> que saldo de 6)
         status, erro_data, _ = self.call_api("POST", f"/api/produtos/{prod_id}/movimentacoes", {
             "tipo": "saida",
             "quantidade": 7.0,
@@ -248,13 +248,13 @@ class AlmoxarifadoTestCase(unittest.TestCase):
         })
         m_id = mov_res["movimentacao"]["id"]
         
-        # Realizar estorno
+        # Realiza estorno
         status, estorno_res, _ = self.call_api("POST", f"/api/movimentacoes/{m_id}/estorno", {
             "motivo": "Erro de digitação"
         })
         self.assertEqual(status, 201)
 
-        # Verificar que o saldo voltou a 0 e o histórico tem 2 linhas (auditoria preservada)
+        # Verificar que o saldo voltou a 0 e o histórico tem 2 linhas ( = auditoria preservada)
         status, p_check, _ = self.call_api("GET", f"/api/produtos/{p_id}")
         self.assertEqual(p_check["saldo"], 0.0)
         self.assertEqual(len(p_check["movimentacoes"]), 2)
