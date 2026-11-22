@@ -572,7 +572,7 @@ def handle_registrar_movimentacao(environ, start_response, produto_id):
 def handle_estorno_movimentacao(environ, start_response, mov_id):
     """
     EXTRA: Estorno de movimentação.
-    Nunca apaga o histórico! Realiza uma movimentação compensatória de tipo oposto.
+    Nunca apaga o histórico! Realiza uma movimentação compensatória de tipo oposto
     """
     dados, _ = parse_json_body(environ)
     motivo_estorno = (dados.get("motivo") or "Estorno solicitado pelo almoxarife").strip()
