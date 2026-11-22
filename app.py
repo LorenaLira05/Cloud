@@ -166,9 +166,7 @@ def parse_json_body(environ):
     except Exception as e:
         return None, f"JSON mal formatado: {str(e)}"
 
-# =====================================================================
 # ROTAS E REGRAS DE NEGÓCIO DO DOMÍNIO
-# =====================================================================
 
 def handle_health(environ, start_response):
     """
@@ -665,9 +663,7 @@ def handle_exportar_csv(environ, start_response):
     except Exception as e:
         return json_response(start_response, 500, {"erro": "Erro ao gerar CSV.", "detalhes": str(e)})
 
-# =====================================================================
 # INTERFACE WEB EMBUTIDA (DASHBOARD VISUAL COMPLETO)
-# =====================================================================
 
 HTML_DASHBOARD = """<!DOCTYPE html>
 <html lang="pt-BR">
@@ -1346,9 +1342,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
 </html>
 """
 
-# =====================================================================
 # ROTEADOR WSGI PRINCIPAL
-# =====================================================================
 
 def app(environ, start_response):
     path = environ.get("PATH_INFO", "/").rstrip("/")
