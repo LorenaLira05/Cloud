@@ -10,6 +10,7 @@ Compatibilidade: Azure Database for PostgreSQL & SQLite local
 import os
 import sys
 import json
+import math
 import sqlite3
 import datetime
 import urllib.parse
@@ -38,16 +39,30 @@ IS_POSTGRES = DATABASE_URL.startswith("postgres://") or DATABASE_URL.startswith(
 if DATABASE_URL.startswith("postgres://"):
     DATABASE_URL = DATABASE_URL.replace("postgres://", "postgresql://", 1)
 
+class BancoIndisponivel(Exception):
+    pass
+
+
+def _is_unique_violation(exc):
+    if isinstance(exc, sqlite3.IntegrityError):
+        return True
+    if getattr(exc, "pgcode", None) == "23505":
+        return True
+    if exc.args and isinstance(exc.args[0], dict) and exc.args[0].get("C") == "23505":
+        return True
+    return False
+
+
 # Conexão com o banco de dados
 def get_db():
     if IS_POSTGRES:
         try:
-            import psycopg2
-            import psycopg2.extras
-            conn = psycopg2.connect(DATABASE_URL)
-            return conn, "postgres"
-        except ImportError:
             try:
+                import psycopg2
+                import psycopg2.extras
+                conn = psycopg2.connect(DATABASE_URL)
+                return conn, "postgres"
+            except ImportError:
                 import pg8000.dbapi
                 url_parsed = urllib.parse.urlparse(DATABASE_URL)
                 conn = pg8000.dbapi.connect(
@@ -58,17 +73,20 @@ def get_db():
                     database=url_parsed.path.lstrip("/")
                 )
                 return conn, "postgres"
-            except Exception as e:
-                raise RuntimeError(f"Driver PostgreSQL não encontrado ou erro de conexão: {e}")
+        except Exception as e:
+            raise BancoIndisponivel(f"Erro ao conectar ao PostgreSQL: {e}") from e
     else:
         # SQLite Local
-        db_dir = os.path.join(os.path.dirname(__file__), "banco")
-        os.makedirs(db_dir, exist_ok=True)
-        db_path = os.path.join(db_dir, "almoxarifado.db")
-        conn = sqlite3.connect(db_path, timeout=15)
-        conn.row_factory = sqlite3.Row
-        conn.execute("PRAGMA foreign_keys = ON;")
-        return conn, "sqlite"
+        try:
+            db_dir = os.path.join(os.path.dirname(__file__), "banco")
+            os.makedirs(db_dir, exist_ok=True)
+            db_path = os.path.join(db_dir, "almoxarifado.db")
+            conn = sqlite3.connect(db_path, timeout=15)
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA foreign_keys = ON;")
+            return conn, "sqlite"
+        except Exception as e:
+            raise BancoIndisponivel(f"Erro ao conectar ao SQLite: {e}") from e
 
 def init_db_if_needed():
     """Garante que as tabelas existam e carrega dados iniciais caso o  banco estiver vazio"""
@@ -121,6 +139,7 @@ def json_response(start_response, status_code, data):
         201: "201 Created",
         400: "400 Bad Request",
         404: "404 Not Found",
+        405: "405 Method Not Allowed",
         409: "409 Conflict",
         500: "500 Internal Server Error",
         503: "503 Service Unavailable"
@@ -161,10 +180,13 @@ def parse_json_body(environ):
         content_length = int(environ.get("CONTENT_LENGTH", 0))
         if content_length > 0:
             raw = environ["wsgi.input"].read(content_length)
-            return json.loads(raw.decode("utf-8")), None
+            dados = json.loads(raw.decode("utf-8"))
+            if not isinstance(dados, dict):
+                return None, "Corpo deve ser um objeto JSON."
+            return dados, None
         return {}, None
-    except Exception as e:
-        return None, f"JSON mal formatado: {str(e)}"
+    except Exception:
+        return None, "JSON mal formatado."
 
 # ROTAS E REGRAS DE NEGÓCIO DO DOMÍNIO
 
@@ -173,13 +195,13 @@ def handle_health(environ, start_response):
     Rota obrigatória GET /health
     Testa conexão com o banco e retorna timestamp de início 'iniciado_em'
     """
+    conn = None
     try:
         conn, engine = get_db()
         cur = conn.cursor()
         cur.execute("SELECT 1;")
         cur.fetchone()
         cur.close()
-        conn.close()
 
         agora = datetime.datetime.now(datetime.timezone.utc).isoformat()
         return json_response(start_response, 200, {
@@ -193,13 +215,19 @@ def handle_health(environ, start_response):
             "grupo": os.environ.get("GRUPO_ID", "G02")
         })
     except Exception as e:
+        print(f"[ERRO] {e}", file=sys.stderr)
         return json_response(start_response, 503, {
             "status": "erro",
             "banco": "desconectado",
             "iniciado_em": APP_INICIADO_EM,
-            "mensagem": "Não foi possível conectar ao banco de dados.",
-            "erro": str(e)
+            "mensagem": "Não foi possível conectar ao banco de dados."
         })
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def handle_listar_produtos(environ, start_response, apenas_abaixo_minimo=False):
     """
@@ -209,6 +237,7 @@ def handle_listar_produtos(environ, start_response, apenas_abaixo_minimo=False):
     params = urllib.parse.parse_qs(query_string)
     filtro_minimo = apenas_abaixo_minimo or params.get("abaixo_minimo", ["false"])[0].lower() in ("true", "1")
 
+    conn = None
     try:
         conn, engine = get_db()
         cur = conn.cursor()
@@ -243,10 +272,19 @@ def handle_listar_produtos(environ, start_response, apenas_abaixo_minimo=False):
             produtos.append(p)
 
         cur.close()
-        conn.close()
         return json_response(start_response, 200, produtos)
+    except BancoIndisponivel as e:
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 503, {"erro": "Banco de dados indisponível."})
     except Exception as e:
-        return json_response(start_response, 500, {"erro": "Falha ao consultar produtos.", "detalhes": str(e)})
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 500, {"erro": "Falha ao consultar produtos."})
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def handle_cadastrar_produto(environ, start_response):
     """
@@ -257,8 +295,8 @@ def handle_cadastrar_produto(environ, start_response):
     if erro:
         return json_response(start_response, 400, {"erro": erro})
 
-    nome = dados.get("nome", "").strip()
-    unidade = dados.get("unidade", "").strip()
+    nome = str(dados.get("nome") or "").strip()
+    unidade = str(dados.get("unidade") or "").strip()
     estoque_minimo = dados.get("estoque_minimo", 0)
 
     # Validações no servidor
@@ -272,12 +310,17 @@ def handle_cadastrar_produto(environ, start_response):
         })
 
     try:
+        if isinstance(estoque_minimo, bool):
+            raise TypeError()
         estoque_minimo = float(estoque_minimo)
+        if not math.isfinite(estoque_minimo) or round(estoque_minimo, 2) != estoque_minimo:
+            return json_response(start_response, 400, {"erro": "O estoque mínimo deve ser um número válido com até 2 casas decimais."})
         if estoque_minimo < 0:
             return json_response(start_response, 400, {"erro": "O estoque mínimo deve ser maior ou igual a zero."})
     except (ValueError, TypeError):
         return json_response(start_response, 400, {"erro": "O estoque mínimo deve ser um número válido."})
 
+    conn = None
     try:
         conn, engine = get_db()
         cur = conn.cursor()
@@ -287,7 +330,6 @@ def handle_cadastrar_produto(environ, start_response):
         cur.execute(check_sql, (nome,))
         if cur.fetchone():
             cur.close()
-            conn.close()
             return json_response(start_response, 409, {
                 "erro": f"Já existe um produto cadastrado com o nome '{nome}'."
             })
@@ -331,15 +373,36 @@ def handle_cadastrar_produto(environ, start_response):
 
         conn.commit()
         cur.close()
-        conn.close()
         return json_response(start_response, 201, produto)
+    except BancoIndisponivel as e:
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 503, {"erro": "Banco de dados indisponível."})
+    except sqlite3.IntegrityError:
+        if conn:
+            conn.rollback()
+        return json_response(start_response, 409, {"erro": "Já existe um produto com esse nome."})
     except Exception as e:
-        return json_response(start_response, 500, {"erro": "Erro ao cadastrar produto.", "detalhes": str(e)})
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        if _is_unique_violation(e):
+            return json_response(start_response, 409, {"erro": "Já existe um produto com esse nome."})
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 500, {"erro": "Erro ao cadastrar produto."})
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def handle_consultar_produto(environ, start_response, produto_id):
     """
     RF4: Consultar produto com saldo atual e histórico completo de movimentações
     """
+    conn = None
     try:
         conn, engine = get_db()
         cur = conn.cursor()
@@ -350,7 +413,6 @@ def handle_consultar_produto(environ, start_response, produto_id):
 
         if not p_row:
             cur.close()
-            conn.close()
             return json_response(start_response, 404, {"erro": f"Produto com ID {produto_id} não encontrado."})
 
         if engine == "sqlite":
@@ -397,10 +459,19 @@ def handle_consultar_produto(environ, start_response, produto_id):
         produto["total_movimentacoes"] = len(historico)
 
         cur.close()
-        conn.close()
         return json_response(start_response, 200, produto)
+    except BancoIndisponivel as e:
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 503, {"erro": "Banco de dados indisponível."})
     except Exception as e:
-        return json_response(start_response, 500, {"erro": "Falha ao consultar produto.", "detalhes": str(e)})
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 500, {"erro": "Falha ao consultar produto."})
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def handle_registrar_movimentacao(environ, start_response, produto_id):
     """
@@ -415,9 +486,9 @@ def handle_registrar_movimentacao(environ, start_response, produto_id):
     if erro:
         return json_response(start_response, 400, {"erro": erro})
 
-    tipo = dados.get("tipo", "").strip().lower()
+    tipo = str(dados.get("tipo") or "").strip().lower()
     quantidade_raw = dados.get("quantidade")
-    motivo = dados.get("motivo", "").strip()
+    motivo = str(dados.get("motivo") or "").strip()
 
     # Validação do tipo
     if tipo not in ("entrada", "saida"):
@@ -427,7 +498,13 @@ def handle_registrar_movimentacao(environ, start_response, produto_id):
 
     # Validação da quantidade (CA3: <= 0 -> 400)
     try:
+        if isinstance(quantidade_raw, bool):
+            raise TypeError()
         quantidade = float(quantidade_raw)
+        if not math.isfinite(quantidade) or round(quantidade, 2) != quantidade:
+            return json_response(start_response, 400, {
+                "erro": "Quantidade inválida."
+            })
         if quantidade <= 0:
             return json_response(start_response, 400, {
                 "erro": "A quantidade movimentada deve ser estritamente maior que zero."
@@ -437,9 +514,9 @@ def handle_registrar_movimentacao(environ, start_response, produto_id):
             "erro": "Quantidade inválida. Deve ser um número maior que zero."
         })
 
-    if not motivo:
+    if not motivo or len(motivo) > 255:
         return json_response(start_response, 400, {
-            "erro": "O motivo da movimentação é obrigatório."
+            "erro": "O motivo da movimentação é obrigatório e deve ter no máximo 255 caracteres."
         })
 
     conn = None
@@ -544,7 +621,6 @@ def handle_registrar_movimentacao(environ, start_response, produto_id):
         # Confirma a transação atômica
         conn.commit()
         cur.close()
-        conn.close()
 
         return json_response(start_response, 201, {
             "mensagem": "Movimentação registrada com sucesso.",
@@ -560,22 +636,35 @@ def handle_registrar_movimentacao(environ, start_response, produto_id):
             "novo_saldo": novo_saldo
         })
 
+    except BancoIndisponivel as e:
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 503, {"erro": "Banco de dados indisponível."})
     except Exception as e:
         if conn:
             try:
                 conn.rollback()
+            except Exception:
+                pass
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 500, {"erro": "Erro ao processar movimentação."})
+    finally:
+        if conn:
+            try:
                 conn.close()
             except Exception:
                 pass
-        return json_response(start_response, 500, {"erro": "Erro ao processar movimentação.", "detalhes": str(e)})
 
 def handle_estorno_movimentacao(environ, start_response, mov_id):
     """
     EXTRA: Estorno de movimentação.
     Nunca apaga o histórico! Realiza uma movimentação compensatória de tipo oposto
     """
-    dados, _ = parse_json_body(environ)
-    motivo_estorno = (dados.get("motivo") or "Estorno solicitado pelo almoxarife").strip()
+    dados, erro = parse_json_body(environ)
+    if erro:
+        return json_response(start_response, 400, {"erro": erro})
+    motivo_estorno = str(dados.get("motivo") or "Estorno solicitado pelo almoxarife").strip()
+    if len(motivo_estorno) > 200:
+        return json_response(start_response, 400, {"erro": "O motivo do estorno deve ter no máximo 200 caracteres."})
 
     conn = None
     try:
@@ -588,7 +677,6 @@ def handle_estorno_movimentacao(environ, start_response, mov_id):
         m_row = cur.fetchone()
         if not m_row:
             cur.close()
-            conn.close()
             return json_response(start_response, 404, {"erro": f"Movimentação com ID {mov_id} não encontrada."})
 
         p_id = m_row[1] if engine == "postgres" else m_row["produto_id"]
@@ -597,7 +685,7 @@ def handle_estorno_movimentacao(environ, start_response, mov_id):
 
         # Tipo compensatório
         novo_tipo = "saida" if tipo_orig == "entrada" else "entrada"
-        novo_motivo = f"ESTORNO da Movimentação #{mov_id} ({tipo_orig}): {motivo_estorno}"
+        novo_motivo = f"ESTORNO da Movimentação #{mov_id} ({tipo_orig}): {motivo_estorno}"[:255]
 
         # Se o estorno for uma saída, verificar se há saldo suficiente
         if novo_tipo == "saida":
@@ -606,7 +694,6 @@ def handle_estorno_movimentacao(environ, start_response, mov_id):
             if cur.rowcount == 0:
                 conn.rollback()
                 cur.close()
-                conn.close()
                 return json_response(start_response, 409, {
                     "erro": "Não é possível estornar esta entrada pois o saldo atual ficaria negativo."
                 })
@@ -614,29 +701,47 @@ def handle_estorno_movimentacao(environ, start_response, mov_id):
             upd_sql = "UPDATE produtos SET saldo = saldo + %s WHERE id = %s" if engine == "postgres" else "UPDATE produtos SET saldo = saldo + ? WHERE id = ?"
             cur.execute(upd_sql, (qtd, p_id))
 
-        # Registrar movimentação de estorno
-        ins_sql = "INSERT INTO movimentacoes (produto_id, tipo, quantidade, motivo) VALUES (%s, %s, %s, %s)" if engine == "postgres" else "INSERT INTO movimentacoes (produto_id, tipo, quantidade, motivo) VALUES (?, ?, ?, ?)"
-        cur.execute(ins_sql, (p_id, novo_tipo, qtd, novo_motivo))
+        # Registrar movimentação de estorno com referência única estorno_de
+        ins_sql = "INSERT INTO movimentacoes (produto_id, tipo, quantidade, motivo, estorno_de) VALUES (%s, %s, %s, %s, %s)" if engine == "postgres" else "INSERT INTO movimentacoes (produto_id, tipo, quantidade, motivo, estorno_de) VALUES (?, ?, ?, ?, ?)"
+        cur.execute(ins_sql, (p_id, novo_tipo, qtd, novo_motivo, mov_id))
 
         conn.commit()
         cur.close()
-        conn.close()
         return json_response(start_response, 201, {
             "mensagem": "Estorno realizado com sucesso através de lançamento compensatório.",
             "movimentacao_estornada": mov_id,
             "tipo_compensatorio": novo_tipo,
             "quantidade": qtd
         })
-    except Exception as e:
+    except BancoIndisponivel as e:
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 503, {"erro": "Banco de dados indisponível."})
+    except sqlite3.IntegrityError:
         if conn:
             conn.rollback()
-            conn.close()
-        return json_response(start_response, 500, {"erro": "Falha no estorno.", "detalhes": str(e)})
+        return json_response(start_response, 409, {"erro": "Movimentação já estornada."})
+    except Exception as e:
+        if conn:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        if _is_unique_violation(e):
+            return json_response(start_response, 409, {"erro": "Movimentação já estornada."})
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 500, {"erro": "Falha no estorno."})
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 def handle_exportar_csv(environ, start_response):
     """
     EXTRA: Exportar relatório de movimentações em formato CSV
     """
+    conn = None
     try:
         conn, engine = get_db()
         cur = conn.cursor()
@@ -658,10 +763,19 @@ def handle_exportar_csv(environ, start_response):
                 csv_lines.append(f"{row[0]};{row[1]};\"{row[2]}\";{row[3]};{row[4]};{row[5]};\"{row[6]}\";{row[7]}")
 
         cur.close()
-        conn.close()
         return csv_response(start_response, "\n".join(csv_lines))
+    except BancoIndisponivel as e:
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 503, {"erro": "Banco de dados indisponível."})
     except Exception as e:
-        return json_response(start_response, 500, {"erro": "Erro ao gerar CSV.", "detalhes": str(e)})
+        print(f"[ERRO] {e}", file=sys.stderr)
+        return json_response(start_response, 500, {"erro": "Erro ao gerar CSV."})
+    finally:
+        if conn:
+            try:
+                conn.close()
+            except Exception:
+                pass
 
 # INTERFACE WEB EMBUTIDA (DASHBOARD VISUAL COMPLETO)
 
@@ -892,8 +1006,8 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 <div class="stat-value" id="statAbaixoMin">--</div>
             </div>
             <div class="stat-card">
-                <div class="stat-label">Persistência na Nuvem</div>
-                <div class="stat-value" style="font-size: 1.2rem; color: var(--success);" id="statPersistencia">Ativa (ACID)</div>
+                <div class="stat-label">Banco de Dados Ativo</div>
+                <div class="stat-value" style="font-size: 1.2rem; color: var(--success);" id="statPersistencia">--</div>
             </div>
         </div>
 
@@ -1057,19 +1171,27 @@ HTML_DASHBOARD = """<!DOCTYPE html>
             setTimeout(() => { toast.style.display = 'none'; }, 4000);
         }
 
+        const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
         async function verificarHealth() {
             try {
                 const res = await fetch('/health');
                 const data = await res.json();
                 const badge = document.getElementById('healthBadge');
                 const text = document.getElementById('healthText');
+                const statPers = document.getElementById('statPersistencia');
                 if (data.status === 'ok') {
-                    text.innerHTML = `Banco: ${data.tipo_banco} | Up desde: ${new Date(data.iniciado_em).toLocaleTimeString()}`;
+                    text.textContent = `Banco: ${data.tipo_banco} | Up desde: ${new Date(data.iniciado_em).toLocaleTimeString()}`;
+                    if (statPers) statPers.textContent = data.tipo_banco;
                 } else {
                     badge.className = 'health-badge';
                     badge.style.background = '#fee2e2';
                     badge.style.color = '#b91c1c';
                     text.textContent = 'Banco Indisponível (503)';
+                    if (statPers) {
+                        statPers.textContent = 'Indisponível';
+                        statPers.style.color = 'var(--danger)';
+                    }
                 }
             } catch (err) {
                 document.getElementById('healthText').textContent = 'Erro ao verificar /health';
@@ -1109,7 +1231,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                 return `
                     <tr>
                         <td><strong>#${p.id}</strong></td>
-                        <td><strong>${p.nome}</strong></td>
+                        <td><strong>${esc(p.nome)}</strong></td>
                         <td>${p.unidade}</td>
                         <td>${p.estoque_minimo.toFixed(2)} ${p.unidade}</td>
                         <td><strong style="color: ${isAlerta ? 'var(--danger)' : 'var(--text-main)'}; font-size: 1.05rem;">${p.saldo.toFixed(2)} ${p.unidade}</strong></td>
@@ -1228,7 +1350,7 @@ HTML_DASHBOARD = """<!DOCTYPE html>
                         <td>#${m.id}</td>
                         <td><span class="badge ${m.tipo === 'entrada' ? 'badge-success' : 'badge-danger'}">${m.tipo.toUpperCase()}</span></td>
                         <td><strong>${m.quantidade.toFixed(2)}</strong></td>
-                        <td>${m.motivo}</td>
+                        <td>${esc(m.motivo)}</td>
                         <td>${new Date(m.criada_em).toLocaleString()}</td>
                     </tr>
                 `).join('');

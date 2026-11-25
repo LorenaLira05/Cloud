@@ -23,6 +23,7 @@ CREATE TABLE movimentacoes (
     tipo TEXT NOT NULL CHECK (tipo IN ('entrada', 'saida')),
     quantidade REAL NOT NULL CHECK (quantidade > 0),
     motivo TEXT NOT NULL,
+    estorno_de INTEGER UNIQUE REFERENCES movimentacoes(id),
     criada_em TEXT NOT NULL DEFAULT (datetime('now'))
 );
 

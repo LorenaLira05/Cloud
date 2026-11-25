@@ -26,6 +26,7 @@ CREATE TABLE movimentacoes (
     tipo VARCHAR(10) NOT NULL CHECK (tipo IN ('entrada', 'saida')),
     quantidade NUMERIC(10, 2) NOT NULL CHECK (quantidade > 0),
     motivo VARCHAR(255) NOT NULL,
+    estorno_de INTEGER UNIQUE REFERENCES movimentacoes(id),
     criada_em TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
